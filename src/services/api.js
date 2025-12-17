@@ -1,19 +1,10 @@
 import axios from "axios";
 
-// ============ Configuration ============
-const API_BASE_URL = import.meta.env.PROD
-  ? "http://autopartsdemo.runasp.net/api"
-  : "/api";
-
-const isDevelopment = import.meta.env.DEV;
-
-if (isDevelopment) {
-  console.log("[API] Using API_BASE_URL:", API_BASE_URL);
-}
+const VITE_API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 // ============ Axios Instance ============
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: '/api',
   headers: {
     "Content-Type": "application/json",
   },
@@ -28,19 +19,9 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    if (isDevelopment) {
-      console.log(
-        `[API Request] ${config.method.toUpperCase()} ${config.url}`,
-        config.data || ""
-      );
-    }
-
     return config;
   },
   (error) => {
-    if (isDevelopment) {
-      console.error("[API Request Error]", error);
-    }
     return Promise.reject(error);
   }
 );
@@ -48,33 +29,17 @@ api.interceptors.request.use(
 // ============ Response Interceptor ============
 api.interceptors.response.use(
   (response) => {
-    if (isDevelopment) {
-      console.log(
-        `[API Response] ${response.config.method.toUpperCase()} ${
-          response.config.url
-        }`,
-        response.data
-      );
-    }
     return response;
   },
   (error) => {
     if (error.response) {
       const { status, data } = error.response;
 
-      if (isDevelopment) {
-        console.error(
-          `[API Error ${status}] ${error.config.method.toUpperCase()} ${
-            error.config.url
-          }`,
-          data
-        );
-      }
+      const isLoginRequest =
+        error.config.url &&
+        error.config.url.toLowerCase().includes("users/login");
 
-      if (status === 401) {
-        if (isDevelopment) {
-          console.warn("[API] Unauthorized - clearing auth and redirecting");
-        }
+      if (status === 401 && !isLoginRequest) {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         window.location.href = "/auth/login";
@@ -82,6 +47,7 @@ api.interceptors.response.use(
 
       if (status === 403) {
         console.error("[API] Access forbidden - insufficient permissions");
+        console.log(data);
       }
 
       if (status === 404) {

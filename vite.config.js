@@ -10,7 +10,7 @@ export default defineConfig({
       "/api": {
         target: "http://autopartsdemo.runasp.net",
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, "/api"),
+        secure: false,
       },
     },
   },
