@@ -66,11 +66,15 @@ const Categories = () => {
   const handleDelete = async (category) => {
     if (window.confirm("هل أنت متأكد من حذف هذه الفئة؟")) {
       try {
-        await categoriesAPI.delete(category.id);
-        fetchCategories();
+        const categoryId = category.id || category.Id || category.ID;
+        await categoriesAPI.delete(categoryId);
+        // Update local state immediately for better UX and to avoid race conditions
+        setCategories((prevCategories) =>
+          prevCategories.filter((c) => (c.id || c.Id || c.ID) !== categoryId)
+        );
       } catch (error) {
         alert("فشل حذف الفئة");
-        alert(error.response?.data?.message);
+        console.error(error);
       }
     }
   };
@@ -83,7 +87,9 @@ const Categories = () => {
     try {
       if (editingCategory) {
         // Send name as string to match Create pattern
-        await categoriesAPI.update(editingCategory.id, formData.name);
+        const categoryId =
+          editingCategory.id || editingCategory.Id || editingCategory.ID;
+        await categoriesAPI.update(categoryId, formData.name);
       } else {
         await categoriesAPI.create(formData.name);
       }
@@ -101,17 +107,21 @@ const Categories = () => {
     { header: "الوصف", accessor: "description" },
   ];
 
-  const filteredCategories = categories.filter(category =>
-    category.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    category.description?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredCategories = categories.filter(
+    (category) =>
+      category.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      category.description?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
     <div ref={containerRef} className="space-y-6">
       {/* العنوان وأزرار الإجراءات */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-bold text-gray-800">إدارة الفئات</h1>
-        <Button onClick={handleAdd} variant="primary">
+        <h1 className="text-2xl font-bold text-gray-800 ">إدارة الفئات</h1>
+        <Button
+          onClick={handleAdd}
+          className="bg-blue-500 hover:bg-blue-600 text-white cursor-pointer p-2!"
+        >
           + إضافة فئة جديدة
         </Button>
       </div>
@@ -144,7 +154,7 @@ const Categories = () => {
         title={editingCategory ? "تعديل الفئة" : "إضافة فئة جديدة"}
         className="w-[500px] mt-20"
       >
-        <form onSubmit={handleSave} className="space-y-8 mt-30!">
+        <form onSubmit={handleSave} className="space-y-10 p-8!">
           <Input
             label="اسم الفئة"
             name="name"
@@ -152,22 +162,23 @@ const Categories = () => {
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             required
           />
-
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
               {error}
             </div>
           )}
-
-          <div className="flex gap-3 justify-end">
+          <div className="flex gap-2 justify-end mt-4!">
             <Button
               type="button"
-              variant="secondary"
+              className="bg-gray-500 hover:bg-gray-600 text-white cursor-pointer p-2!"
               onClick={() => setIsModalOpen(false)}
             >
               إلغاء
             </Button>
-            <Button type="submit" variant="primary">
+            <Button
+              type="submit"
+              className="bg-blue-500 hover:bg-blue-600 text-white cursor-pointer p-2!"
+            >
               حفظ
             </Button>
           </div>

@@ -1,12 +1,12 @@
 // صفحة إدارة المصروفات
-import { useState, useEffect, useRef } from 'react';
-import { gsap } from 'gsap';
-import { expensesAPI } from '../../services/api';
-import Table from '../../components/ui/Table';
-import Button from '../../components/ui/Button';
-import Modal from '../../components/ui/Modal';
-import Input from '../../components/ui/Input';
-import Loading from '../../components/ui/Loading';
+import { useState, useEffect, useRef } from "react";
+import { gsap } from "gsap";
+import { expensesAPI } from "../../services/api";
+import Table from "../../components/ui/Table";
+import Button from "../../components/ui/Button";
+import Modal from "../../components/ui/Modal";
+import Input from "../../components/ui/Input";
+import Loading from "../../components/ui/Loading";
 
 const Expenses = () => {
   const [expenses, setExpenses] = useState([]);
@@ -14,13 +14,13 @@ const Expenses = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [formData, setFormData] = useState({
-    description: '',
-    amount: '',
-    category: '',
-    date: new Date().toISOString().split('T')[0],
-    notes: '',
+    description: "",
+    amount: "",
+    category: "",
+    date: new Date().toISOString().split("T")[0],
+    notes: "",
   });
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -40,7 +40,7 @@ const Expenses = () => {
       const response = await expensesAPI.getAll();
       setExpenses(response.data || []);
     } catch (error) {
-      console.error('Error fetching expenses:', error);
+      console.error("Error fetching expenses:", error);
     } finally {
       setLoading(false);
     }
@@ -49,79 +49,95 @@ const Expenses = () => {
   const handleAdd = () => {
     setEditingExpense(null);
     setFormData({
-      description: '',
-      amount: '',
-      category: '',
-      date: new Date().toISOString().split('T')[0],
-      notes: '',
+      description: "",
+      amount: "",
+      category: "",
+      date: new Date().toISOString().split("T")[0],
+      notes: "",
     });
-    setError('');
+    setError("");
     setIsModalOpen(true);
   };
 
   const handleEdit = (expense) => {
     setEditingExpense(expense);
     setFormData({
-      description: expense.description || '',
-      amount: expense.amount || '',
-      category: expense.category || '',
-      date: expense.date ? expense.date.split('T')[0] : new Date().toISOString().split('T')[0],
-      notes: expense.notes || '',
+      description: expense.name || expense.description || "",
+      amount: expense.amount || "",
+      category: expense.category || "",
+      date: expense.date
+        ? expense.date.split("T")[0]
+        : new Date().toISOString().split("T")[0],
+      notes: expense.message || expense.notes || "",
     });
-    setError('');
+    setError("");
     setIsModalOpen(true);
   };
 
   const handleDelete = async (expense) => {
-    if (window.confirm('هل أنت متأكد من حذف هذا المصروف؟')) {
+    if (window.confirm("هل أنت متأكد من حذف هذا المصروف؟")) {
       try {
-        await expensesAPI.delete(expense.id);
-        fetchExpenses();
+        const expenseId = expense.id || expense.Id || expense.ID;
+        await expensesAPI.delete(expenseId);
+        setExpenses((prev) =>
+          prev.filter((e) => (e.id || e.Id || e.ID) !== expenseId)
+        );
       } catch (error) {
-        alert('فشل حذف المصروف');
+        alert("فشل حذف المصروف");
+        console.error(error);
       }
     }
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
     try {
       const data = {
-        ...formData,
-        amount: parseFloat(formData.amount),
+        amount: parseFloat(formData.amount) || 0,
+        name: formData.description || "", // Swagger uses 'name' not 'description'
+        date: formData.date
+          ? new Date(formData.date).toISOString()
+          : new Date().toISOString(),
+        message: formData.notes || "", // Swagger uses 'message' not 'notes'
       };
 
       if (editingExpense) {
-        await expensesAPI.update(editingExpense.id, data);
+        const expenseId =
+          editingExpense.id || editingExpense.Id || editingExpense.ID;
+        await expensesAPI.update(expenseId, data);
       } else {
         await expensesAPI.create(data);
       }
       setIsModalOpen(false);
       fetchExpenses();
     } catch (error) {
-      setError(error.response?.data?.message || 'فشل حفظ المصروف');
+      setError(error.response?.data?.message || "فشل حفظ المصروف");
     }
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'غير محدد';
+    if (!dateString) return "غير محدد";
     const date = new Date(dateString);
-    return date.toLocaleDateString('ar-SA');
+    return date.toLocaleDateString("ar-SA");
   };
 
   const columns = [
-    { header: 'الوصف', accessor: 'description' },
     {
-      header: 'المبلغ',
-      accessor: 'amount',
-      render: (value) => `${value?.toFixed(2) || '0.00'} ر.س`,
+      header: "الوصف",
+      accessor: "name",
+      render: (value, row) => value || row.description || "",
     },
-    { header: 'الفئة', accessor: 'category' },
     {
-      header: 'التاريخ',
-      accessor: 'date',
+      header: "المبلغ",
+      accessor: "amount",
+      render: (value) => `${value?.toFixed(2) || "0.00"} ر.س`,
+    },
+    { header: "الفئة", accessor: "category" },
+    {
+      header: "التاريخ",
+      accessor: "date",
       render: (value) => formatDate(value),
     },
   ];
@@ -149,7 +165,7 @@ const Expenses = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingExpense ? 'تعديل المصروف' : 'إضافة مصروف جديد'}
+        title={editingExpense ? "تعديل المصروف" : "إضافة مصروف جديد"}
       >
         <form onSubmit={handleSave} className="space-y-4">
           <Input
@@ -230,4 +246,3 @@ const Expenses = () => {
 };
 
 export default Expenses;
-

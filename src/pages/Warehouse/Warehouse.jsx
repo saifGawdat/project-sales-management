@@ -1,12 +1,12 @@
 // صفحة إدارة المستودع
-import { useState, useEffect, useRef } from 'react';
-import { gsap } from 'gsap';
-import { warehouseAPI, productsAPI } from '../../services/api';
-import Table from '../../components/ui/Table';
-import Button from '../../components/ui/Button';
-import Modal from '../../components/ui/Modal';
-import Input from '../../components/ui/Input';
-import Loading from '../../components/ui/Loading';
+import { useState, useEffect, useRef } from "react";
+import { gsap } from "gsap";
+import { warehouseAPI, productsAPI } from "../../services/api";
+import Table from "../../components/ui/Table";
+import Button from "../../components/ui/Button";
+import Modal from "../../components/ui/Modal";
+import Input from "../../components/ui/Input";
+import Loading from "../../components/ui/Loading";
 
 const Warehouse = () => {
   const [warehouseItems, setWarehouseItems] = useState([]);
@@ -15,11 +15,11 @@ const Warehouse = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [formData, setFormData] = useState({
-    productId: '',
-    quantity: '',
-    location: '',
+    productId: "",
+    quantity: "",
+    location: "",
   });
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -43,7 +43,7 @@ const Warehouse = () => {
       setWarehouseItems(warehouseRes.data || []);
       setProducts(productsRes.data || []);
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error("Error fetching data:", error);
     } finally {
       setLoading(false);
     }
@@ -52,71 +52,92 @@ const Warehouse = () => {
   const handleAdd = () => {
     setEditingItem(null);
     setFormData({
-      productId: '',
-      quantity: '',
-      location: '',
+      productId: "",
+      quantity: "",
+      location: "",
     });
-    setError('');
+    setError("");
     setIsModalOpen(true);
   };
 
   const handleEdit = (item) => {
     setEditingItem(item);
+    const productId = item.productId || item.productID || item.ProductID;
     setFormData({
-      productId: item.productId || '',
-      quantity: item.quantity || '',
-      location: item.location || '',
+      productId: productId || "",
+      quantity: item.quantity || item.stock || "",
+      location: item.location || "",
     });
-    setError('');
+    setError("");
     setIsModalOpen(true);
   };
 
   const handleDelete = async (item) => {
-    if (window.confirm('هل أنت متأكد من حذف هذا العنصر؟')) {
-      try {
-        await warehouseAPI.delete(item.id);
-        fetchData();
-      } catch (error) {
-        alert('فشل حذف العنصر');
-      }
-    }
+    // Warehouse API doesn't have DELETE endpoint
+    alert("واجهة برمجة التطبيقات لا تدعم حذف عناصر المستودع");
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
     try {
-      const data = {
-        ...formData,
-        quantity: parseInt(formData.quantity),
-      };
-
       if (editingItem) {
-        await warehouseAPI.update(editingItem.id, data);
+        // Use updateQuantity for existing items (primitive int body)
+        const productId =
+          editingItem.productId ||
+          editingItem.productID ||
+          editingItem.ProductID ||
+          formData.productId;
+        const quantity = parseInt(formData.quantity);
+
+        if (!productId) {
+          setError("معرف المنتج مطلوب");
+          return;
+        }
+
+        if (isNaN(quantity) || quantity < 0) {
+          setError("الكمية يجب أن تكون رقماً صحيحاً أكبر من أو يساوي الصفر");
+          return;
+        }
+
+        await warehouseAPI.updateQuantity(productId, quantity);
+        setIsModalOpen(false);
+        fetchData();
       } else {
-        await warehouseAPI.create(data);
+        // WareHouse API doesn't support create operation
+        setError("لا يمكن إضافة عناصر جديدة. يرجى تحديث الكميات فقط.");
       }
-      setIsModalOpen(false);
-      fetchData();
     } catch (error) {
-      setError(error.response?.data?.message || 'فشل حفظ العنصر');
+      setError(
+        error.response?.data?.message || error.message || "فشل حفظ العنصر"
+      );
     }
   };
 
   const getProductName = (productId) => {
-    const product = products.find((p) => p.id === productId);
-    return product?.name || 'غير محدد';
+    if (!productId) return "غير محدد";
+    const product = products.find(
+      (p) =>
+        (p.id || p.Id || p.ID) == productId ||
+        (p.id || p.Id || p.ID) == (productId.id || productId.Id || productId.ID)
+    );
+    return product?.name || product?.Name || "غير محدد";
   };
 
   const columns = [
     {
-      header: 'المنتج',
-      accessor: 'productId',
-      render: (value) => getProductName(value),
+      header: "المنتج",
+      accessor: "productId",
+      render: (value, row) =>
+        getProductName(value || row.productID || row.ProductID),
     },
-    { header: 'الكمية', accessor: 'quantity' },
-    { header: 'الموقع', accessor: 'location' },
+    {
+      header: "الكمية",
+      accessor: "quantity",
+      render: (value, row) => value || row.stock || "0",
+    },
+    { header: "الموقع", accessor: "location" },
   ];
 
   return (
@@ -142,7 +163,7 @@ const Warehouse = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingItem ? 'تعديل عنصر المستودع' : 'إضافة عنصر جديد'}
+        title={editingItem ? "تعديل عنصر المستودع" : "إضافة عنصر جديد"}
       >
         <form onSubmit={handleSave} className="space-y-4">
           <div>
@@ -158,11 +179,15 @@ const Warehouse = () => {
               required
             >
               <option value="">اختر المنتج</option>
-              {products.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {product.name}
-                </option>
-              ))}
+              {products.map((product) => {
+                const productId = product.id || product.Id || product.ID;
+                const productName = product.name || product.Name;
+                return (
+                  <option key={productId} value={productId}>
+                    {productName}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -211,4 +236,3 @@ const Warehouse = () => {
 };
 
 export default Warehouse;
-

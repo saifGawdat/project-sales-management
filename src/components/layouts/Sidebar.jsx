@@ -10,8 +10,6 @@ const Sidebar = ({ isOpen, onClose }) => {
     { path: "/categories", label: "الفئات", icon: "📁" },
     { path: "/product-types", label: "أنواع المنتجات", icon: "🏷️" },
     { path: "/products", label: "المنتجات", icon: "📦" },
-    { path: "/warehouse", label: "المستودع", icon: "🏭" },
-    { path: "/cars", label: "السيارات", icon: "🚗" },
     { path: "/sales", label: "المبيعات", icon: "💰" },
     { path: "/expenses", label: "المصروفات", icon: "💸" },
     { path: "/profit", label: "ملخص الأرباح", icon: "📊" },

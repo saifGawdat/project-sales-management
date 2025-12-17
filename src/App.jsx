@@ -17,8 +17,6 @@ import Register from "./pages/Auth/Register";
 import Categories from "./pages/Categories/Categories";
 import ProductTypes from "./pages/ProductTypes/ProductTypes";
 import Products from "./pages/Products/Products";
-import Warehouse from "./pages/Warehouse/Warehouse";
-import Cars from "./pages/Cars/Cars";
 import Sales from "./pages/Sales/Sales";
 import Expenses from "./pages/Expenses/Expenses";
 import ProfitSummary from "./pages/Profit/ProfitSummary";
@@ -48,8 +46,6 @@ function App() {
             <Route path="categories" element={<Categories />} />
             <Route path="product-types" element={<ProductTypes />} />
             <Route path="products" element={<Products />} />
-            <Route path="warehouse" element={<Warehouse />} />
-            <Route path="cars" element={<Cars />} />
             <Route path="sales" element={<Sales />} />
             <Route path="expenses" element={<Expenses />} />
             <Route path="profit" element={<ProfitSummary />} />

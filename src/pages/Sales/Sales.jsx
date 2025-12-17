@@ -1,12 +1,13 @@
 // صفحة إدارة المبيعات (الطلبات)
-import { useState, useEffect, useRef } from 'react';
-import { gsap } from 'gsap';
-import { salesAPI, productsAPI } from '../../services/api';
-import Table from '../../components/ui/Table';
-import Button from '../../components/ui/Button';
-import Modal from '../../components/ui/Modal';
-import Input from '../../components/ui/Input';
-import Loading from '../../components/ui/Loading';
+import { useState, useEffect, useRef } from "react";
+import { gsap } from "gsap";
+import { salesAPI, productsAPI } from "../../services/api";
+import { useAuth } from "../../hooks/useAuth";
+import Table from "../../components/ui/Table";
+import Button from "../../components/ui/Button";
+import Modal from "../../components/ui/Modal";
+import Input from "../../components/ui/Input";
+import Loading from "../../components/ui/Loading";
 
 const Sales = () => {
   const [sales, setSales] = useState([]);
@@ -15,15 +16,15 @@ const Sales = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSale, setEditingSale] = useState(null);
   const [formData, setFormData] = useState({
-    productId: '',
-    quantity: '',
-    price: '',
-    customerName: '',
-    customerPhone: '',
-    date: new Date().toISOString().split('T')[0],
-    notes: '',
+    ProductID: "",
+    quantity: "",
+    price: "",
+    customerName: "",
+    customerPhone: "",
+    date: new Date().toISOString().split("T")[0],
+    notes: "",
   });
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -38,16 +39,24 @@ const Sales = () => {
   }, []);
 
   const fetchData = async () => {
+    setLoading(true);
+
+    // Fetch Sales
     try {
-      setLoading(true);
-      const [salesRes, productsRes] = await Promise.all([
-        salesAPI.getAll(),
-        productsAPI.getAll(),
-      ]);
+      const salesRes = await salesAPI.getAll();
       setSales(salesRes.data || []);
+    } catch (error) {
+      console.error("Error fetching sales:", error);
+      // Don't let sales error stop products from loading
+    }
+
+    // Fetch Products
+    try {
+      const productsRes = await productsAPI.getAll();
+      console.log("Fetched products:", productsRes.data); // Debug log
       setProducts(productsRes.data || []);
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error("Error fetching products:", error);
     } finally {
       setLoading(false);
     }
@@ -56,102 +65,133 @@ const Sales = () => {
   const handleAdd = () => {
     setEditingSale(null);
     setFormData({
-      productId: '',
-      quantity: '',
-      price: '',
-      customerName: '',
-      customerPhone: '',
-      date: new Date().toISOString().split('T')[0],
-      notes: '',
+      ProductID: "",
+      quantity: "",
+      price: "",
+      customerName: "",
+      customerPhone: "",
+      date: new Date().toISOString().split("T")[0],
+      notes: "",
     });
-    setError('');
+    setError("");
     setIsModalOpen(true);
   };
 
   const handleEdit = (sale) => {
     setEditingSale(sale);
     setFormData({
-      productId: sale.productId || '',
-      quantity: sale.quantity || '',
-      price: sale.price || '',
-      customerName: sale.customerName || '',
-      customerPhone: sale.customerPhone || '',
-      date: sale.date ? sale.date.split('T')[0] : new Date().toISOString().split('T')[0],
-      notes: sale.notes || '',
+      ProductID: sale.productID || sale.ProductID || "",
+      quantity: sale.quantity || "",
+      price: sale.price || "",
+      customerName: sale.customerName || "",
+      customerPhone: sale.customerPhone || "",
+      date: sale.date
+        ? sale.date.split("T")[0]
+        : new Date().toISOString().split("T")[0],
+      notes: sale.notes || "",
     });
-    setError('');
+    setError("");
     setIsModalOpen(true);
   };
 
   const handleDelete = async (sale) => {
-    if (window.confirm('هل أنت متأكد من حذف هذا الطلب؟')) {
+    if (window.confirm("هل أنت متأكد من حذف هذا الطلب؟")) {
       try {
-        await salesAPI.delete(sale.id);
-        fetchData();
+        const orderId = sale.id || sale.Id || sale.ID;
+        await salesAPI.delete(orderId);
+        setSales((prev) =>
+          prev.filter((s) => (s.id || s.Id || s.ID) !== (orderId || sale.id))
+        );
       } catch (error) {
-        alert('فشل حذف الطلب');
+        alert("فشل حذف الطلب");
+        console.error(error);
       }
     }
   };
 
+  const { user } = useAuth(); // Get current user
+
   const handleSave = async (e) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
     try {
+      const userID = user?.id || user?.ID || user?.Id;
+      if (!userID) {
+        throw new Error("User not authenticated");
+      }
+
       const data = {
-        ...formData,
-        quantity: parseInt(formData.quantity),
-        price: parseFloat(formData.price),
+        quantity: parseInt(formData.quantity) || 0,
+        price: parseFloat(formData.price) || 0,
+        date: formData.date
+          ? new Date(formData.date).toISOString()
+          : new Date().toISOString(),
+        customerName: formData.customerName || "",
+        productID: parseInt(formData.ProductID) || 0,
+        userID: parseInt(userID),
       };
 
       if (editingSale) {
-        await salesAPI.update(editingSale.id, data);
+        // Update only accepts price and quantity
+        const orderId = editingSale.id || editingSale.Id || editingSale.ID;
+        await salesAPI.update(orderId, {
+          price: parseFloat(formData.price) || 0,
+          quantity: parseInt(formData.quantity) || 0,
+        });
       } else {
         await salesAPI.create(data);
       }
       setIsModalOpen(false);
       fetchData();
     } catch (error) {
-      setError(error.response?.data?.message || 'فشل حفظ الطلب');
+      setError(
+        error.response?.data?.message || error.message || "فشل حفظ الطلب"
+      );
     }
   };
 
-  const getProductName = (productId) => {
-    const product = products.find((p) => p.id === productId);
-    return product?.name || 'غير محدد';
+  const getProductName = (productID) => {
+    if (!productID) return "غير محدد";
+    const product = products.find(
+      (p) =>
+        (p.id || p.Id || p.ID) == productID ||
+        (p.id || p.Id || p.ID) == (productID.id || productID.Id || productID.ID)
+    );
+    return product?.name || product?.Name || "غير محدد";
   };
 
   const formatDate = (dateString) => {
-    if (!dateString) return 'غير محدد';
+    if (!dateString) return "غير محدد";
     const date = new Date(dateString);
-    return date.toLocaleDateString('ar-SA');
+    return date.toLocaleDateString("ar-SA");
   };
 
   const columns = [
     {
-      header: 'المنتج',
-      accessor: 'productId',
-      render: (value) => getProductName(value),
+      header: "المنتج",
+      accessor: "productID",
+      render: (value, row) =>
+        getProductName(value || row.ProductID || row.productID),
     },
-    { header: 'الكمية', accessor: 'quantity' },
+    { header: "الكمية", accessor: "quantity" },
     {
-      header: 'السعر',
-      accessor: 'price',
-      render: (value) => `${value?.toFixed(2) || '0.00'} ر.س`,
+      header: "السعر",
+      accessor: "price",
+      render: (value) => `${value?.toFixed(2) || "0.00"} ر.س`,
     },
     {
-      header: 'الإجمالي',
-      accessor: 'total',
+      header: "الإجمالي",
+      accessor: "total",
       render: (value, row) => {
         const total = (row.quantity || 0) * (row.price || 0);
         return `${total.toFixed(2)} ر.س`;
       },
     },
-    { header: 'اسم العميل', accessor: 'customerName' },
+    { header: "اسم العميل", accessor: "customerName" },
     {
-      header: 'التاريخ',
-      accessor: 'date',
+      header: "التاريخ",
+      accessor: "date",
       render: (value) => formatDate(value),
     },
   ];
@@ -179,7 +219,7 @@ const Sales = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingSale ? 'تعديل الطلب' : 'إضافة طلب جديد'}
+        title={editingSale ? "تعديل الطلب" : "إضافة طلب جديد"}
         size="lg"
       >
         <form onSubmit={handleSave} className="space-y-4">
@@ -190,18 +230,25 @@ const Sales = () => {
               </label>
               <select
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={formData.productId}
+                value={formData.ProductID}
                 onChange={(e) =>
-                  setFormData({ ...formData, productId: e.target.value })
+                  setFormData({ ...formData, ProductID: e.target.value })
                 }
                 required
               >
                 <option value="">اختر المنتج</option>
-                {products.map((product) => (
-                  <option key={product.id} value={product.id}>
-                    {product.name}
-                  </option>
-                ))}
+                {products.length > 0 ? (
+                  products.map((product) => (
+                    <option
+                      key={product.id || product.Id || product.ID}
+                      value={product.id || product.Id || product.ID}
+                    >
+                      {product.name || product.Name}
+                    </option>
+                  ))
+                ) : (
+                  <option disabled>لا توجد منتجات متاحة</option>
+                )}
               </select>
             </div>
 
@@ -292,4 +339,3 @@ const Sales = () => {
 };
 
 export default Sales;
-

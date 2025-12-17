@@ -1,18 +1,19 @@
 // مكون النافذة المنبثقة - لعرض النماذج والحوارات
-import { useEffect, useRef } from 'react';
-import { gsap } from 'gsap';
-import Button from './Button';
+import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
+import { gsap } from "gsap";
+import Button from "./Button";
 
-const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
+const Modal = ({ isOpen, onClose, title, children, size = "md" }) => {
   const modalRef = useRef(null);
   const overlayRef = useRef(null);
 
   // تحديد أحجام النافذة المنبثقة
   const sizes = {
-    sm: 'max-w-md',
-    md: 'max-w-lg',
-    lg: 'max-w-2xl',
-    xl: 'max-w-4xl',
+    sm: "max-w-md",
+    md: "max-w-lg",
+    lg: "max-w-2xl",
+    xl: "max-w-4xl",
   };
 
   // إضافة رسوم متحركة عند فتح وإغلاق النافذة
@@ -33,10 +34,10 @@ const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div
       ref={overlayRef}
-      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-white z-50 flex items-center justify-center p-2"
       onClick={onClose}
     >
       <div
@@ -70,9 +71,9 @@ const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
         {/* محتوى النافذة */}
         <div className="p-6">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
 export default Modal;
-

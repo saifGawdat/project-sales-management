@@ -1,174 +1,410 @@
-// ملف خدمة API - يحتوي على جميع طلبات HTTP للتواصل مع الخادم الخلفي
 import axios from "axios";
 
-// إعداد axios الأساسي مع عنوان API
-// يستخدم متغير البيئة VITE_API_BASE_URL أو العنوان الافتراضي
-// في الإنتاج: http://autopartsdemo.runasp.net/api
-// في التطوير: /api (يتم توجيهه عبر proxy)
+// ============ Configuration ============
 const API_BASE_URL = import.meta.env.PROD
   ? "http://autopartsdemo.runasp.net/api"
   : "/api";
 
-console.log("[API] Using API_BASE_URL:", API_BASE_URL);
+const isDevelopment = import.meta.env.DEV;
 
-// إنشاء instance من axios مع إعدادات افتراضية
+if (isDevelopment) {
+  console.log("[API] Using API_BASE_URL:", API_BASE_URL);
+}
+
+// ============ Axios Instance ============
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
-  timeout: 10000, // 10 second timeout
+  timeout: 15000,
 });
 
-// إضافة interceptor لإرفاق token في كل طلب
+// ============ Request Interceptor ============
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    if (isDevelopment) {
+      console.log(
+        `[API Request] ${config.method.toUpperCase()} ${config.url}`,
+        config.data || ""
+      );
+    }
+
     return config;
   },
   (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// إضافة interceptor للتعامل مع الأخطاء
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    console.error("[API] Error occurred:", {
-      status: error.response?.status,
-      message: error.message,
-      data: error.response?.data,
-      url: error.config?.url,
-    });
-
-    if (error.response?.status === 401) {
-      // إذا كان الخطأ 401، قم بتسجيل الخروج
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      window.location.href = "/auth/login";
+    if (isDevelopment) {
+      console.error("[API Request Error]", error);
     }
     return Promise.reject(error);
   }
 );
 
-// ============ Authentication APIs ============
+// ============ Response Interceptor ============
+api.interceptors.response.use(
+  (response) => {
+    if (isDevelopment) {
+      console.log(
+        `[API Response] ${response.config.method.toUpperCase()} ${
+          response.config.url
+        }`,
+        response.data
+      );
+    }
+    return response;
+  },
+  (error) => {
+    if (error.response) {
+      const { status, data } = error.response;
+
+      if (isDevelopment) {
+        console.error(
+          `[API Error ${status}] ${error.config.method.toUpperCase()} ${
+            error.config.url
+          }`,
+          data
+        );
+      }
+
+      if (status === 401) {
+        if (isDevelopment) {
+          console.warn("[API] Unauthorized - clearing auth and redirecting");
+        }
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "/auth/login";
+      }
+
+      if (status === 403) {
+        console.error("[API] Access forbidden - insufficient permissions");
+      }
+
+      if (status === 404) {
+        console.error("[API] Resource not found");
+      }
+
+      if (status >= 500) {
+        console.error("[API] Server error occurred");
+      }
+    } else if (error.request) {
+      console.error(
+        "[API] Network error - no response received",
+        error.message
+      );
+    } else {
+      console.error("[API] Error", error.message);
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+// ============ Helper Functions ============
+
+const sendStringBody = {
+  headers: { "Content-Type": "application/json" },
+};
+
+// ============ Authentication API ============
+
 export const authAPI = {
-  // تسجيل الدخول
   login: (credentials) => {
-    const loginPayload = {
+    return api.post("/Users/login", {
       name: credentials.username || credentials.name,
       password: credentials.password,
-    };
-    console.log("[API] Login request:", { name: loginPayload.name });
-    return api.post("/Users/login", loginPayload);
-  },
-  // إنشاء حساب جديد
-  register: (data) => {
-    const registerPayload = {
-      email: data.email,
-      name: data.username || data.name,
-      password: data.password,
-    };
-    console.log("[API] Register request:", {
-      name: registerPayload.name,
-      email: registerPayload.email,
     });
-    return api.post("/Users/register", registerPayload);
   },
-  // تسجيل الخروج - لا يوجد endpoint في Swagger، يتم التعامل معه محلياً
-  logout: () => Promise.resolve(),
-  // الحصول على معلومات المستخدم الحالي
-  getCurrentUser: () => {
-    console.log("[API] Fetching current user");
-    return api.get("/Users/me");
+
+  register: (data) => {
+    return api.post("/Users/register", {
+      name: data.username || data.name,
+      email: data.email,
+      password: data.password,
+    });
   },
+
+  logout: () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    return Promise.resolve();
+  },
+
+  getCurrentUser: () => api.get("/Users/me").catch(() => null),
+
+  deleteAccount: () => api.delete("/Users"),
 };
 
-// ============ Categories APIs ============
+// ============ Categories API ============
+
 export const categoriesAPI = {
-  // الحصول على جميع الفئات
   getAll: () => api.get("/Categories"),
-  // الحصول على فئة واحدة
-  getById: (id) => api.get(`/Categories/${id}`),
-  // إنشاء فئة جديدة
-  create: (data) => api.post("/Categories", data),
-  // تحديث فئة
-  update: (id, data) => api.put(`/Categories/${id}`, data),
-  // حذف فئة
-  delete: (id) => api.delete(`/Categories/${id}`),
+
+  create: (name) =>
+    api.post("/Categories", JSON.stringify(name), sendStringBody),
+
+  update: (id, name) =>
+    api.put(`/Categories/${id}`, JSON.stringify(name), sendStringBody),
+
+  delete: (categoryId) => api.delete(`/Categories/${categoryId}`),
 };
 
-// ============ Product Types APIs ============
+// ============ Product Types API ============
+
 export const productTypesAPI = {
-  getAll: () => api.get("/ProductTypes"),
-  getById: (id) => api.get(`/ProductTypes/${id}`),
-  create: (data) => api.post("/ProductTypes", data),
-  update: (id, data) => api.put(`/ProductTypes/${id}`, data),
-  delete: (id) => api.delete(`/ProductTypes/${id}`),
+  getByCategoryId: (categoryId) => api.get(`/ProductTypes/${categoryId}`),
+
+  create: (categoryId, name) =>
+    api.post(
+      `/ProductTypes/${categoryId}`,
+      JSON.stringify(name),
+      sendStringBody
+    ),
+
+  update: (typeId, name) =>
+    api.put(`/ProductTypes/${typeId}`, JSON.stringify(name), sendStringBody),
+
+  delete: (typeId) => api.delete(`/ProductTypes/${typeId}`),
+
+  getAll: async () => {
+    try {
+      const categoriesRes = await api.get("/Categories");
+      const categories = categoriesRes.data || [];
+
+      if (categories.length === 0) {
+        return { data: [] };
+      }
+
+      const productTypesPromises = categories.map((cat) =>
+        api
+          .get(`/ProductTypes/${cat.id || cat.Id || cat.ID}`)
+          .catch(() => ({ data: [] }))
+      );
+
+      const productTypesResults = await Promise.all(productTypesPromises);
+
+      const allProductTypes = productTypesResults.reduce(
+        (acc, result, index) => {
+          const categoryId =
+            categories[index].id ||
+            categories[index].Id ||
+            categories[index].ID;
+          const types = (result.data || []).map((type) => ({
+            ...type,
+            categoryId: categoryId, // Inject categoryId
+            CategoryID: categoryId, // Handle potential casing preference
+          }));
+          return acc.concat(types);
+        },
+        []
+      );
+
+      return { data: allProductTypes };
+    } catch (error) {
+      console.error("[API] Error fetching all product types:", error);
+      return { data: [] };
+    }
+  },
 };
 
-// ============ Products APIs ============
+// ============ Products API ============
+
 export const productsAPI = {
-  getAll: () => api.get("/Products"),
-  getById: (id) => api.get(`/Products/${id}`),
-  create: (data) => api.post("/Products", data),
-  update: (id, data) => api.put(`/Products/${id}`, data),
-  delete: (id) => api.delete(`/Products/${id}`),
+  getByProductTypeId: (productTypeId) => api.get(`/Products/${productTypeId}`),
+
+  create: (productTypeId, data) => {
+    const payload = {
+      name: data.name,
+      stock: data.stock || 0,
+      carModel: data.carModel || "", // API spec requires this field
+    };
+    console.log("[API] Creating product:", { productTypeId, payload });
+    return api.post(`/Products/${productTypeId}`, payload);
+  },
+
+  update: (ProductID, data) => {
+    const payload = {
+      name: data.name,
+      stock: data.stock || 0,
+      carModel: data.carModel || "", // API spec requires this field
+    };
+    console.log("[API] Updating product:", { ProductID, payload });
+    return api.put(`/Products/${ProductID}`, payload);
+  },
+
+  delete: (ProductID) => api.delete(`/Products/${ProductID}`),
+
+  getAll: async () => {
+    try {
+      const productTypesRes = await productTypesAPI.getAll();
+      const productTypes = productTypesRes.data || [];
+
+      if (productTypes.length === 0) {
+        console.log("[API] No product types found, returning empty products");
+        return { data: [] };
+      }
+
+      console.log(
+        "[API] Fetching products for",
+        productTypes.length,
+        "product types"
+      );
+
+      const productsPromises = productTypes.map((type) => {
+        const typeId = type.id || type.Id || type.ID;
+        return api
+          .get(`/Products/${typeId}`)
+          .then((response) => {
+            console.log(`[API] Products for type ${typeId}:`, response.data);
+            return response;
+          })
+          .catch((error) => {
+            console.warn(
+              `[API] Failed to fetch products for type ${typeId}:`,
+              error.message
+            );
+            return { data: [] };
+          });
+      });
+
+      const productsResults = await Promise.all(productsPromises);
+
+      const allProducts = productsResults.reduce((acc, result, index) => {
+        const productTypeId =
+          productTypes[index].id ||
+          productTypes[index].Id ||
+          productTypes[index].ID;
+        const categoryId =
+          productTypes[index].categoryId || productTypes[index].CategoryID;
+
+        const products = (result.data || []).map((product) => ({
+          ...product,
+          productTypeId: productTypeId,
+          ProductTypeId: productTypeId,
+          categoryId: categoryId,
+          CategoryID: categoryId,
+        }));
+        return acc.concat(products);
+      }, []);
+
+      console.log("[API] Total products fetched:", allProducts.length);
+      return { data: allProducts };
+    } catch (error) {
+      console.error("[API] Error fetching all products:", error);
+      console.error("[API] Error details:", error.response || error.message);
+      throw error; // Re-throw to let component handle it
+    }
+  },
 };
 
-// ============ Warehouse APIs ============
-export const warehouseAPI = {
-  getAll: () => api.get("/Warehouse"),
-  getById: (id) => api.get(`/Warehouse/${id}`),
-  create: (data) => api.post("/Warehouse", data),
-  update: (id, data) => api.put(`/Warehouse/${id}`, data),
-  delete: (id) => api.delete(`/Warehouse/${id}`),
-  // تحديث الكمية في المستودع
-  updateQuantity: (id, quantity) =>
-    api.put(`/Warehouse/${id}/quantity`, { quantity }),
-};
+// ============ Cars API ============
 
-// ============ Cars APIs ============
 export const carsAPI = {
-  getAll: () => api.get("/Cars"),
-  getById: (id) => api.get(`/Cars/${id}`),
-  create: (data) => api.post("/Cars", data),
-  update: (id, data) => api.put(`/Cars/${id}`, data),
-  delete: (id) => api.delete(`/Cars/${id}`),
+  getByProductID: (ProductID) => api.get(`/Cars/${ProductID}`),
+
+  getAll: async () => {
+    try {
+      const productsRes = await productsAPI.getAll();
+      const products = productsRes.data || [];
+
+      if (products.length === 0) {
+        return { data: [] };
+      }
+
+      const carsPromises = products.map((product) =>
+        api
+          .get(`/Cars/${product.id || product.Id || product.ID}`)
+          .catch(() => ({ data: [] }))
+      );
+
+      const carsResults = await Promise.all(carsPromises);
+
+      const allCars = carsResults.reduce((acc, result) => {
+        return acc.concat(result.data || []);
+      }, []);
+
+      return { data: allCars };
+    } catch (error) {
+      console.error("[API] Error fetching all cars:", error);
+      return { data: [] };
+    }
+  },
 };
 
-// ============ Sales/Orders APIs ============
+// ============ Orders (Sales) API ============
+
 export const salesAPI = {
-  getAll: () => api.get("/Sales"),
-  getById: (id) => api.get(`/Sales/${id}`),
-  create: (data) => api.post("/Sales", data),
-  update: (id, data) => api.put(`/Sales/${id}`, data),
-  delete: (id) => api.delete(`/Sales/${id}`),
-  // الحصول على إحصائيات المبيعات
-  getStatistics: () => api.get("/Sales/statistics"),
+  getAll: () => api.get("/Orders"),
+
+  create: (data) =>
+    api.post("/Orders", {
+      quantity: data.quantity || 0,
+      price: data.price || 0,
+      date: data.date || new Date().toISOString(),
+      customerName: data.customerName || "",
+      productID: data.productID || data.ProductID || 0,
+      userID: data.userID || data.userId || 0,
+    }),
+
+  update: (orderId, data) =>
+    api.put(`/Orders/${orderId}`, {
+      price: data.price || 0,
+      quantity: data.quantity || 0,
+    }),
+
+  delete: (orderId) => api.delete(`/Orders/${orderId}`),
 };
 
-// ============ Expenses APIs ============
+// ============ Expenses API ============
+
 export const expensesAPI = {
   getAll: () => api.get("/Expenses"),
-  getById: (id) => api.get(`/Expenses/${id}`),
-  create: (data) => api.post("/Expenses", data),
-  update: (id, data) => api.put(`/Expenses/${id}`, data),
+
+  create: (data) =>
+    api.post("/Expenses", {
+      amount: data.amount || 0,
+      name: data.name || data.description || "",
+      date: data.date || new Date().toISOString(),
+      message: data.message || data.notes || "",
+    }),
+
+  update: (id, data) =>
+    api.put(`/Expenses/${id}`, {
+      amount: data.amount || 0,
+      name: data.name || data.description || "",
+      date: data.date || new Date().toISOString(),
+      message: data.message || data.notes || "",
+    }),
+
   delete: (id) => api.delete(`/Expenses/${id}`),
-  // الحصول على إحصائيات المصروفات
-  getStatistics: () => api.get("/Expenses/statistics"),
 };
 
-// ============ Profit Summary APIs ============
+// ============ Warehouse API ============
+
+export const warehouseAPI = {
+  getAll: () => api.get("/WareHouse"),
+
+  updateQuantity: (ProductID, quantity) => {
+    // API expects primitive integer (0) as body
+    const qty = parseInt(quantity);
+    return api.put(`/WareHouse/${ProductID}`, qty, {
+      headers: { "Content-Type": "application/json" },
+    });
+  },
+};
+
+// ============ Profit API ============
+
 export const profitAPI = {
-  getSummary: (startDate, endDate) =>
-    api.get("/Profit/summary", { params: { startDate, endDate } }),
-  getReport: (startDate, endDate) =>
-    api.get("/Profit/report", { params: { startDate, endDate } }),
+  getByDay: (day, month, year) =>
+    api.get("/Profit/day", { params: { day, Month: month, Year: year } }),
+
+  getByMonth: (month, year) =>
+    api.get("/Profit/month", { params: { month, year } }),
 };
 
 export default api;
